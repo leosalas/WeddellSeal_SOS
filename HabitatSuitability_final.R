@@ -40,7 +40,7 @@ makedf<-function(reg,var,data){
 	seq_lgicewidth<-seq(from=min(data$lgicewidth,na.rm=T), to=max(data$lgicewidth,na.rm=T),length.out=100);listseq[["lgicewidth"]]<-seq_lgicewidth
 	mn_lgdi_adpe<-mean(subset(data,AllRegion %in% reg)$lgdi_adpe,na.rm=T); listmn[["lgdi_adpe"]]<-mn_lgdi_adpe
 	seq_lgdi_adpe<-seq(from=min(data$lgdi_adpe,na.rm=T), to=max(data$lgdi_adpe,na.rm=T),length.out=100);listseq[["lgdi_adpe"]]<-seq_lgdi_adpe
-	mn_lgdi_empe<-mean(subset(data,AllRegion %in% reg)$lgdi_empe,na.rm=T); listmn[["lgdi_empe"]]<-mn_lgdi_empe
+	mn_lgdi_empe<-mean(subset(data,AllRegion %in% reg)$lgdi_empe,na.rm=T); listmn[["lgdi_empe"]]<-mn_lgdi_empe+1.832581 #this is -log(mindempe/1000)
 	seq_lgdi_empe<-seq(from=min(data$lgdi_empe,na.rm=T), to=max(data$lgdi_empe,na.rm=T),length.out=100);listseq[["lgdi_empe"]]<-seq_lgdi_empe
 	mn_lgdi_cont<-mean(subset(data,AllRegion %in% reg)$lgdi_cont,na.rm=T); listmn[["lgdi_cont"]]<-mn_lgdi_cont
 	seq_lgdi_cont<-seq(from=min(data$lgdi_cont,na.rm=T), to=max(data$lgdi_cont,na.rm=T),length.out=100);listseq[["lgdi_cont"]]<-seq_lgdi_cont
@@ -113,17 +113,22 @@ k<-log(nrow(data))
 stepm<-step(fullmodel,k=k)	#using BIC as the selection criterion 
 summary(stepm)
 
-#Stepm is not an ideal fit...
+#Stepm is not an ideal fit... And...
+#Rearrange the factor for AllRegion to use WRSS as the ref and do the shotgun below
+data$AllRegion<-ifelse(data$Region=="ERS","ERS",ifelse(data$drygalski==0,"WRSS","WRSN"))
+data$regionOrder<-ifelse(data$Region=="ERS",2,ifelse(data$drygalski==0,1,3))
+data$AllRegion<-as.factor(data$AllRegion)
+data$AllRegion<-reorder(data$AllRegion,data$regionOrder)
 
 #Our top model is really:
 topfml<-as.formula("sealspres ~ tomnodaoi + crack + Year + mlsearch + lgdi_edge + lgdi_glac + lgdi_deep + 
-				lgicewidth + I(lgdi_cont^2) + I(lgdi_adpe^2) + I(lgdi_empe^2) + I(lgdi_deep^2)")
+				lgicewidth + I(lgdi_cont^2) + I(lgdi_adpe^2) + I(lgdi_empe^2) + I(lgdi_deep^2) + AllRegion")
 topmdl<-glm(formula=topfml,data=data,family="binomial");summary(topmdl)
 
 #Adding linear covars for those quadratics that did not include them to see if it's worth adding them 
 #(i.e., to see if it makes sense not to force the parabola to have min/max at 0)
 topfml_l<-as.formula("sealspres ~ tomnodaoi + crack + Year + mlsearch + lgdi_edge + lgdi_glac + lgdi_deep + lgdi_cont + lgdi_adpe +
-				lgnear_empe + lgicewidth + I(lgdi_cont^2) + I(lgdi_adpe^2) + I(lgnear_empe^2) + I(lgdi_deep^2)")
+				lgnear_empe + lgicewidth + I(lgdi_cont^2) + I(lgdi_adpe^2) + I(lgnear_empe^2) + I(lgdi_deep^2) + AllRegion") 
 topmdl_l<-glm(formula=topfml_l,data=data,family="binomial");summary(topmdl_l)
 #RESULT: not worth adding the linear effects to those quadratics that do not heve them
 
@@ -132,12 +137,6 @@ datawrs<-subset(data,Region=="WRS")
 topmdl_wrs<-glm(formula=topfml,data=datawrs,family="binomial");summary(topmdl_wrs)
 
 #we tried using shore on both the overal and the WRS models - not best.
-
-#2) rearrange the factor for AllRegion to use WRSS as the ref and do the shotgun below
-data$AllRegion<-ifelse(data$Region=="ERS","ERS",ifelse(data$drygalski==0,"WRSS","WRSN"))
-data$regionOrder<-ifelse(data$Region=="ERS",2,ifelse(data$drygalski==0,1,3))
-data$AllRegion<-as.factor(data$AllRegion)
-data$AllRegion<-reorder(data$AllRegion,data$regionOrder)
 
 #add some interactions:
 topfml_rint<-as.formula("sealspres ~ tomnodaoi + crack + Year + mlsearch + lgdi_adpe + lgdi_glac + lgicewidth +  
@@ -150,14 +149,19 @@ topfml_ra<-as.formula("sealspres ~ tomnodaoi + crack + Year + mlsearch + lgdi_gl
 topmdl_ra<-glm(formula=topfml_ra,data=data,family="binomial");summary(topmdl_ra)
 
 #using logratio but no interactions - this is the top model, but with the non-important linear effects for lgdi_adpe and lgdi_empe, and using lgratio_edge:
-topfml_nint<-as.formula("sealspres ~ tomnodaoi + crack + Year + mlsearch + lgratio_edge + lgdi_glac + lgdi_deep + 
-				lgicewidth + lgdi_empe + I(lgdi_cont^2) + I(lgdi_adpe^2) + I(lgnear_empe^2) + I(lgdi_deep^2)")
+topfml_nint<-as.formula("sealspres ~ tomnodaoi + crack + Year + mlsearch + lgratio_edge + lgdi_glac + lgicewidth + lgdi_empe + 
+				lgdi_cont + I(lgdi_cont^2) + lgdi_adpe + I(lgdi_adpe^2) + lgnear_empe + I(lgnear_empe^2) + lgdi_deep + I(lgdi_deep^2) + AllRegion")
 topmdl_nint<-glm(formula=topfml_nint,data=data,family="binomial");summary(topmdl_nint)
 
-#remove the non-important linear effects (attention: here it is only lgdi_adpe):
-topfml_nint<-as.formula("sealspres ~ tomnodaoi + crack + Year + mlsearch + lgratio_edge + lgdi_glac + lgdi_deep + 
-				lgicewidth + lgdi_empe + I(lgdi_cont^2) + I(lgdi_adpe^2) + I(lgnear_empe^2) + I(lgdi_deep^2)")
+#remove the non-important linear effects (attention: here it is only lgdi_adpe and lgdi_cont):
+topfml_nint<-as.formula("sealspres ~ tomnodaoi + crack + mlsearch + Year + lgdi_glac + I(lgdi_cont^2) + lgicewidth + lgdi_deep + I(lgdi_deep^2) + I(lgdi_adpe^2) +  
+				 lgratio_edge + lgdi_empe + lgnear_empe + I(lgnear_empe^2) + AllRegion") 
 topmdl_nint<-glm(formula=topfml_nint,data=data,family="binomial");summary(topmdl_nint)
+
+#Is there an interaction between distance and size of penguin colonies? A: NO
+topfml_nint_peng<-as.formula("sealspres ~ tomnodaoi + crack + mlsearch + Year + lgdi_glac + I(lgdi_cont^2) + lgicewidth + lgdi_deep + I(lgdi_deep^2) + I(lgdi_adpe^2) +  
+				lgratio_edge + lgdi_empe + lgnear_empe + I(lgnear_empe^2) + AllRegion + lgdi_adpe*lgnear_adpe + lgdi_empe*lgnear_empe") 
+topmdl_nint_peng<-glm(formula=topfml_nint_peng,data=data,family="binomial");summary(topmdl_nint_peng)
 
 #BEST MODEL: region interactions with lgratio_edge, and compare to model without regions (topmdl_nint) to show how much of an improvement 
 summary(topmdl_ra);summary(topmdl_nint)
@@ -172,18 +176,23 @@ logitgof(data$sealspres,fitted(topmdl_nint))
 logitgof(data$sealspres,fitted(topmdl_ra),g=5)
 logitgof(data$sealspres,fitted(topmdl_nint),g=6)
 
+write.csv(summary(topmdl_nint)$coefficients,file=paste(basepth,"/paper/table3.csv",sep=""))
+write.csv(summary(topmdl_ra)$coefficients,file=paste(basepth,"/paper/table4.csv",sep=""))
+
 ##PLOTS: 
 # Partial dependence of individual effects
 #distance to deep
-pdf<-makedf(reg="WRSN",var="lgdi_deep",data=data)
+pdf<-makedf(reg="WRSN",var="lgdi_deep",data=data); pdf$lgdi_empe<-2.5
 plotdfn<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_deep");plotdfn$Region<-"WRSN"
-pdf<-makedf(reg="WRSS",var="lgdi_deep",data=data)
+pdf<-makedf(reg="WRSS",var="lgdi_deep",data=data); pdf$lgdi_empe<-2.5
 plotdfs<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_deep");plotdfs$Region<-"WRSS"
-pdf<-makedf(reg="ERS",var="lgdi_deep",data=data)
+pdf<-makedf(reg="ERS",var="lgdi_deep",data=data); pdf$lgdi_empe<-2.5
 plotdfe<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_deep");plotdfe$Region<-"ERS"
 nreg<-makePredictions(df=pdf,mdlfit=topmdl_nint,varnam="lgdi_deep");nreg$Region<-"ALL"
 
 plotdf<-rbind(plotdfn,plotdfs);plotdf<-rbind(plotdf,plotdfe)
+plotdf$lgdi_deep<-plotdf$lgdi_deep-1
+plotdf<-subset(plotdf,lgdi_deep>0)
 p<-ggplot(data=plotdf,aes(x=lgdi_deep,y=predicted)) + 
 		geom_line(color="magenta",size=1) + geom_errorbar(aes(ymin=ymin,ymax=ymax)) +
 		scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.2)) +
@@ -191,7 +200,7 @@ p<-ggplot(data=plotdf,aes(x=lgdi_deep,y=predicted)) +
 		labs(y="Prob. seal presence", x="Log(Distance to deep waters)")
 dev.new();print(p)
 names(plotdf)<-gsub("lgdi_deep","CovariateValue",names(plotdf))
-plotdf$CovarName<-"Log(Dist. to deep waters)"
+plotdf$CovarName<-"LGDI_DEEP"
 regionsdf<-plotdf
 names(nreg)<-gsub("lgdi_deep","CovariateValue",names(nreg))
 nreg$CovarName<-"Log(Dist. to deep waters)"
@@ -199,15 +208,16 @@ regionsdf<-plotdf
 nregdf<-nreg
 
 #lgratio_edge
-pdf<-makedf(reg="WRSN",var="lgratio_edge",data=data)
+pdf<-makedf(reg="WRSN",var="lgratio_edge",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_adpe<-0; pdf$lgdi_empe<-2.5
 plotdfn<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgratio_edge");plotdfn$Region<-"WRSN"
-pdf<-makedf(reg="WRSS",var="lgratio_edge",data=data)
+pdf<-makedf(reg="WRSS",var="lgratio_edge",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_adpe<-0; pdf$lgdi_empe<-2.5
 plotdfs<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgratio_edge");plotdfs$Region<-"WRSS"
-pdf<-makedf(reg="ERS",var="lgratio_edge",data=data)
+pdf<-makedf(reg="ERS",var="lgratio_edge",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_adpe<-0; pdf$lgdi_empe<-2.5
 plotdfe<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgratio_edge");plotdfe$Region<-"ERS"
 nreg<-makePredictions(df=pdf,mdlfit=topmdl_nint,varnam="lgratio_edge");nreg$Region<-"ALL"
 
 plotdf<-rbind(plotdfn,plotdfs);plotdf<-rbind(plotdf,plotdfe)
+plotdf<-subset(plotdf,lgratio_edge>0)
 p<-ggplot(data=plotdf,aes(x=lgratio_edge,y=predicted)) + 
 		geom_line(color="magenta",size=1) + geom_errorbar(aes(ymin=ymin,ymax=ymax)) +
 		scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.2)) +
@@ -215,22 +225,23 @@ p<-ggplot(data=plotdf,aes(x=lgratio_edge,y=predicted)) +
 		labs(y="Prob. seal presence", x="Log(Dist. to ice edge/ice width)")
 dev.new();print(p)
 names(plotdf)<-gsub("lgratio_edge","CovariateValue",names(plotdf))
-plotdf$CovarName<-"Log(Dist. to ice edge/ice width)"
+plotdf$CovarName<-"LGICE_RATIO"
 regionsdf<-rbind(regionsdf,plotdf)
 names(nreg)<-gsub("lgratio_edge","CovariateValue",names(nreg))
 nreg$CovarName<-"Log(Dist. to ice edge/ice width)"
 nregdf<-rbind(nregdf,nreg)
 
 #distance to emperor penguins
-pdf<-makedf(reg="WRSN",var="lgdi_empe",data=data)
+pdf<-makedf(reg="WRSN",var="lgdi_empe",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_adpe<-0; pdf$lgdi_deep<-2
 plotdfn<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_empe");plotdfn$Region<-"WRSN"
-pdf<-makedf(reg="WRSS",var="lgdi_empe",data=data)
+pdf<-makedf(reg="WRSS",var="lgdi_empe",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_adpe<-0; pdf$lgdi_deep<-2
 plotdfs<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_empe");plotdfs$Region<-"WRSS"
-pdf<-makedf(reg="ERS",var="lgdi_empe",data=data)
+pdf<-makedf(reg="ERS",var="lgdi_empe",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_deep<-2
 plotdfe<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_empe");plotdfe$Region<-"ERS"
 nreg<-makePredictions(df=pdf,mdlfit=topmdl_nint,varnam="lgdi_empe");nreg$Region<-"ALL"
 
 plotdf<-rbind(plotdfn,plotdfs);plotdf<-rbind(plotdf,plotdfe)
+plotdf<-subset(plotdf,lgdi_empe>0)
 p<-ggplot(data=plotdf,aes(x=lgdi_empe,y=predicted)) + 
 		geom_line(color="magenta",size=1) + geom_errorbar(aes(ymin=ymin,ymax=ymax)) +
 		scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.2)) +
@@ -238,12 +249,14 @@ p<-ggplot(data=plotdf,aes(x=lgdi_empe,y=predicted)) +
 		labs(y="Prob. seal presence", x="Log(Distance to EMPE)")
 dev.new();print(p)
 names(plotdf)<-gsub("lgdi_empe","CovariateValue",names(plotdf))
-plotdf$CovarName<-"Log(Dist. to EMPE)"
+plotdf$CovarName<-"LGDI_EMPE"
 regionsdf<-rbind(regionsdf,plotdf)
 names(nreg)<-gsub("lgdi_empe","CovariateValue",names(nreg))
 nreg$CovarName<-"Log(Dist. to EMPE)"
 nregdf<-rbind(nregdf,nreg)
 
+
+##combining
 regionsdf$RegionName<-ifelse(regionsdf$Region=="ERS","Eastern Ross Sea",
 		ifelse(regionsdf$Region=="WRSS","Western Ross Sea South","Western Ross Sea North"))
 
@@ -252,9 +265,18 @@ p<-ggplot(data=regionsdf,aes(x=CovariateValue,y=predicted)) +
 		theme_bw() +
 		scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.2)) +
 		facet_grid(RegionName~CovarName,scales="free") +
-		labs(y="Probability of seal presence", x="Covariate Value")
+		labs(y="Probability of seal presence", x="Predictor Value") +
+		scale_x_continuous(breaks=c(0:8)) +
+		theme(axis.text.x=element_text(size=24, color="black")) + theme(axis.title.x=element_text(size=28,face="bold")) +
+		theme(axis.text.y=element_text(size=24, color="black")) + theme(axis.title.y=element_text(size=28,face="bold")) +
+		theme(strip.text.x=element_text(size=24)) + theme(strip.text.y=element_text(size=24))
 
-nregdf$RegionName<-"All Regions"
+jpeg(filename=paste(basepth,"/paper/plots/Plasticity.jpg",sep=""),width=1000,height=1000,quality=100)
+print(p)
+dev.off()
+
+### DO NOT USE This:
+nregdf<-subset(nregdf,CovariateValue>0);nregdf$RegionName<-"All Regions"
 alldata<-rbind(regionsdf,nregdf)
 alldata$CovarLetter<-ifelse(alldata$CovarName=="Log(Dist. to EMPE)","A",
 				ifelse(alldata$CovarName=="Log(Dist. to deep waters)","B","C"))
@@ -262,15 +284,12 @@ p<-ggplot(data=alldata,aes(x=CovariateValue,y=predicted)) +
 		geom_line(color="black",size=2) + geom_ribbon(aes(ymin=ymin,ymax=ymax),color="light gray",alpha=0.5) +
 		theme_bw() +
 		scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.2)) +
-		facet_grid(RegionName~CovarLetter,scales="free") +
+		facet_grid(RegionName~CovarLetter,scales="free_x") +
 		labs(y="Probability of seal presence", x="Predictor Value") +
 		theme(axis.text.x=element_text(size=24, color="black")) + theme(axis.title.x=element_text(size=28,face="bold")) +
 		theme(axis.text.y=element_text(size=24, color="black")) + theme(axis.title.y=element_text(size=28,face="bold")) +
 		theme(strip.text.x=element_text(size=24)) + theme(strip.text.y=element_text(size=24))
-
-jpeg(filename=paste(basepth,"/paper/plots/Plasticity.jpg",sep=""),width=1100,height=1300,quality=100)
-print(p)
-dev.off()
+###################
 
 
 #then the non-interacting effects: lgdi_adpe, lgdi_glac, lgicewidth, lgdi_cont, lgnear_empe
@@ -296,6 +315,7 @@ dev.off()
 pdf<-makedf(reg=c("WRSN","WRSS","ERS"),var="lgdi_adpe",data=data);pdf$AllRegion<-"WRSS"
 plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_adpe");plotdf$Region<-"All Regions"
 tdf<-plotdf;tdf$Variable<-"B";names(tdf)<-gsub("lgdi_adpe","value",names(tdf))
+tdf<-subset(tdf,value>0)
 nintpdf<-rbind(nintpdf,tdf)
 
 p<-ggplot(data=plotdf,aes(x=lgdi_adpe,y=predicted)) + 
