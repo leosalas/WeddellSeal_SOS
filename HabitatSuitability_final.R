@@ -8,13 +8,24 @@
 library(XLConnect)
 library(ggplot2)
 library(generalhoslem)
+library(plyr)
 
 # will need these functions...
-makePredictions<-function(df,mdlfit,varnam,othervars=NULL){
+makePredictions<-function(df,mdlfit,varnam,othervars=NULL,intsC,reg,conf=95){
 	preddf<-predict(mdlfit,df,se=T)
-	df$lgpred<-preddf$fit; df$sepred<-preddf$se.fit
-	df$lgymin<-df$lgpred-(1.96*df$sepred)
-	df$lgymax<-df$lgpred+(1.96*df$sepred)
+	adjM<-intsC[reg]
+	curmn<-mean(preddf$fit);adjC<-curmn-adjM
+	df$lgpred<-preddf$fit-adjC; df$sepred<-preddf$se.fit
+	if(conf==95){
+		df$lgymin<-df$lgpred-(1.96*df$sepred)	
+		df$lgymax<-df$lgpred+(1.96*df$sepred)	
+	}else if(conf==0){
+		df$lgymin<-df$lgpred
+		df$lgymax<-df$lgpred
+	}else{
+		df$lgymin<-df$lgpred-(df$sepred)	
+		df$lgymax<-df$lgpred+(df$sepred)	
+	}
 	df$predicted<-exp(df$lgpred)/(1+exp(df$lgpred))
 	df$ymin<-exp(df$lgymin)/(1+exp(df$lgymin))
 	df$ymax<-exp(df$lgymax)/(1+exp(df$lgymax))
@@ -31,21 +42,21 @@ makedf<-function(reg,var,data){
 	# will need these data...
 	listseq<-list();listmn<-list()
 	mn_lgratio_edge<-mean(subset(data,AllRegion %in% reg)$lgratio_edge,na.rm=T); listmn[["lgratio_edge"]]<-mn_lgratio_edge
-	seq_lgratio_edge<-seq(from=min(data$lgratio_edge,na.rm=T), to=max(data$lgratio_edge,na.rm=T),length.out=100);listseq[["lgratio_edge"]]<-seq_lgratio_edge
+	seq_lgratio_edge<-seq(from=min(subset(data,AllRegion %in% reg)$lgratio_edge,na.rm=T), to=max(subset(data,AllRegion %in% reg)$lgratio_edge,na.rm=T),length.out=100);listseq[["lgratio_edge"]]<-seq_lgratio_edge
 	mn_lgdi_glac<-mean(subset(data,AllRegion %in% reg)$lgdi_glac,na.rm=T); listmn[["lgdi_glac"]]<-mn_lgdi_glac
-	seq_lgdi_glac<-seq(from=min(data$lgdi_glac,na.rm=T), to=max(data$lgdi_glac,na.rm=T),length.out=100);listseq[["lgdi_glac"]]<-seq_lgdi_glac
+	seq_lgdi_glac<-seq(from=min(subset(data,AllRegion %in% reg)$lgdi_glac,na.rm=T), to=max(subset(data,AllRegion %in% reg)$lgdi_glac,na.rm=T),length.out=100);listseq[["lgdi_glac"]]<-seq_lgdi_glac
 	mn_lgdi_deep<-mean(subset(data,AllRegion %in% reg)$lgdi_deep,na.rm=T); listmn[["lgdi_deep"]]<-mn_lgdi_deep
-	seq_lgdi_deep<-seq(from=min(data$lgdi_deep,na.rm=T), to=max(data$lgdi_deep,na.rm=T),length.out=100);listseq[["lgdi_deep"]]<-seq_lgdi_deep
+	seq_lgdi_deep<-seq(from=min(subset(data,AllRegion %in% reg)$lgdi_deep,na.rm=T), to=max(subset(data,AllRegion %in% reg)$lgdi_deep,na.rm=T),length.out=100);listseq[["lgdi_deep"]]<-seq_lgdi_deep
 	mn_lgicewidth<-mean(subset(data,AllRegion %in% reg)$lgicewidth,na.rm=T); listmn[["lgicewidth"]]<-mn_lgicewidth
-	seq_lgicewidth<-seq(from=min(data$lgicewidth,na.rm=T), to=max(data$lgicewidth,na.rm=T),length.out=100);listseq[["lgicewidth"]]<-seq_lgicewidth
+	seq_lgicewidth<-seq(from=min(subset(data,AllRegion %in% reg)$lgicewidth,na.rm=T), to=max(subset(data,AllRegion %in% reg)$lgicewidth,na.rm=T),length.out=100);listseq[["lgicewidth"]]<-seq_lgicewidth
 	mn_lgdi_adpe<-mean(subset(data,AllRegion %in% reg)$lgdi_adpe,na.rm=T); listmn[["lgdi_adpe"]]<-mn_lgdi_adpe
-	seq_lgdi_adpe<-seq(from=min(data$lgdi_adpe,na.rm=T), to=max(data$lgdi_adpe,na.rm=T),length.out=100);listseq[["lgdi_adpe"]]<-seq_lgdi_adpe
+	seq_lgdi_adpe<-seq(from=min(subset(data,AllRegion %in% reg)$lgdi_adpe,na.rm=T), to=max(subset(data,AllRegion %in% reg)$lgdi_adpe,na.rm=T),length.out=100);listseq[["lgdi_adpe"]]<-seq_lgdi_adpe
 	mn_lgdi_empe<-mean(subset(data,AllRegion %in% reg)$lgdi_empe,na.rm=T); listmn[["lgdi_empe"]]<-mn_lgdi_empe+1.832581 #this is -log(mindempe/1000)
-	seq_lgdi_empe<-seq(from=min(data$lgdi_empe,na.rm=T), to=max(data$lgdi_empe,na.rm=T),length.out=100);listseq[["lgdi_empe"]]<-seq_lgdi_empe
+	seq_lgdi_empe<-seq(from=min(subset(data,AllRegion %in% reg)$lgdi_empe,na.rm=T), to=max(subset(data,AllRegion %in% reg)$lgdi_empe,na.rm=T),length.out=100);listseq[["lgdi_empe"]]<-seq_lgdi_empe
 	mn_lgdi_cont<-mean(subset(data,AllRegion %in% reg)$lgdi_cont,na.rm=T); listmn[["lgdi_cont"]]<-mn_lgdi_cont
-	seq_lgdi_cont<-seq(from=min(data$lgdi_cont,na.rm=T), to=max(data$lgdi_cont,na.rm=T),length.out=100);listseq[["lgdi_cont"]]<-seq_lgdi_cont
+	seq_lgdi_cont<-seq(from=min(subset(data,AllRegion %in% reg)$lgdi_cont,na.rm=T), to=max(subset(data,AllRegion %in% reg)$lgdi_cont,na.rm=T),length.out=100);listseq[["lgdi_cont"]]<-seq_lgdi_cont
 	mn_lgnear_empe<-mean(subset(data,AllRegion %in% reg)$lgnear_empe,na.rm=T); listmn[["lgnear_empe"]]<-mn_lgnear_empe
-	seq_lgnear_empe<-seq(from=min(data$lgnear_empe,na.rm=T), to=max(data$lgnear_empe,na.rm=T),length.out=100);listseq[["lgnear_empe"]]<-seq_lgnear_empe
+	seq_lgnear_empe<-seq(from=min(subset(data,AllRegion %in% reg)$lgnear_empe,na.rm=T), to=max(subset(data,AllRegion %in% reg)$lgnear_empe,na.rm=T),length.out=100);listseq[["lgnear_empe"]]<-seq_lgnear_empe
 	
 	newdf<-data.frame(tomnodaoi=rep(1,100),crack=rep(1,100),mlsearch=rep(1,100),Year=rep(2011,100))
 	newdf[,var]<-listseq[[var]]
@@ -62,6 +73,19 @@ makedf<-function(reg,var,data){
 	
 	return(newdf)
 }
+
+estExplaniedDeviance<-function(topmdl,vars,data){
+	devdf<-ldply(.data=vars, .fun=function(x,vars,data,topmdl){
+				redvars<-subset(vars,!vars %in% x);
+				redfml<-paste("sealspres ~ ",paste(redvars,collapse=" + "));
+				redmdl<-glm(formula=redfml,data=data,family="binomial");
+				devexp<-redmdl$deviance-topmdl_ra$deviance;
+				tdf<-data.frame(covariate=x,deviance_exp=devexp);
+				return(tdf)
+			},vars=vars,data=data,topmdl=topmdl)
+	return(devdf)
+}
+
 
 #we will change this path to connect directly to GitHub when we are done, so any user can just copy-paste the code in R and the data will
 #be read from the GitHub repo
@@ -163,6 +187,16 @@ topfml_nint_peng<-as.formula("sealspres ~ tomnodaoi + crack + mlsearch + Year + 
 				lgratio_edge + lgdi_empe + lgnear_empe + I(lgnear_empe^2) + AllRegion + lgdi_adpe*lgnear_adpe + lgdi_empe*lgnear_empe") 
 topmdl_nint_peng<-glm(formula=topfml_nint_peng,data=data,family="binomial");summary(topmdl_nint_peng)
 
+#Nadav wants LRTs for the quadratics that also have linear effects, independently. So:
+library(lmtest)
+deepreffml<-as.formula("sealspres ~ tomnodaoi + crack + mlsearch + Year + lgdi_glac + I(lgdi_cont^2) + lgicewidth + I(lgdi_adpe^2) +  
+				lgratio_edge + lgdi_empe + lgnear_empe + I(lgnear_empe^2) + AllRegion")
+deeprefmdl<-glm(formula=deepreffml,data=data,family="binomial"); lrtest(deeprefmdl,topmdl_nint)
+
+nempreffml<-as.formula("sealspres ~ tomnodaoi + crack + mlsearch + Year + lgdi_glac + I(lgdi_cont^2) + lgicewidth + lgdi_deep + I(lgdi_deep^2) + I(lgdi_adpe^2) +  
+				lgratio_edge + lgdi_empe + AllRegion")
+nemprefmdl<-glm(formula=nempreffml,data=data,family="binomial"); lrtest(nemprefmdl,topmdl_nint)
+
 #BEST MODEL: region interactions with lgratio_edge, and compare to model without regions (topmdl_nint) to show how much of an improvement 
 summary(topmdl_ra);summary(topmdl_nint)
 #How important is to add the interaction?
@@ -179,16 +213,34 @@ logitgof(data$sealspres,fitted(topmdl_nint),g=6)
 write.csv(summary(topmdl_nint)$coefficients,file=paste(basepth,"/paper/table3.csv",sep=""))
 write.csv(summary(topmdl_ra)$coefficients,file=paste(basepth,"/paper/table4.csv",sep=""))
 
+#calculate the deviance explained by each covariate in topmdl_ra and topmdl_nint
+nint_vars<-c("tomnodaoi","crack","mlsearch","Year","lgdi_glac","I(lgdi_cont^2)","lgicewidth","lgdi_deep+I(lgdi_deep^2)",
+		"I(lgdi_adpe^2)","lgratio_edge","lgdi_empe","lgnear_empe+I(lgnear_empe^2)","AllRegion")
+
+ra_vars<-c("tomnodaoi","crack","Year","mlsearch","lgdi_glac","lgicewidth","AllRegion:lgratio_edge","AllRegion:lgdi_deep","AllRegion:lgdi_empe",
+		"AllRegion","I(lgdi_cont^2)","I(lgdi_adpe^2)","I(lgnear_empe^2)","I(lgdi_deep^2)")
+
+devexp_nint<-estExplaniedDeviance(topmdl=topmdl_nint,vars=nint_vars,data=data)
+devexp_nint<-devexp_nint[order(devexp_nint$deviance_exp,decreasing=TRUE),]
+
+devexp_ra<-estExplaniedDeviance(topmdl=topmdl_nint,vars=ra_vars,data=data)
+devexp_ra<-devexp_ra[order(devexp_ra$deviance_exp,decreasing=TRUE),]
+
 ##PLOTS: 
+#recentering results by using a model with only region effects
+fml_region<-as.formula("sealspres ~ AllRegion"); mdl_region<-glm(formula=fml_region,data=data,family="binomial");summary(mdl_region)
+qvr<-summary(mdl_region)$coefficients;
+wrssInt<-qvr[1,1];ersInt<-qvr[2,1]+wrssInt;wrsnInt<-qvr[3,1]+wrssInt;intsC<-c(wrssInt,wrsnInt,ersInt);names(intsC)<-c("WRSS","WRSN","ERS")
+
 # Partial dependence of individual effects
 #distance to deep
-pdf<-makedf(reg="WRSN",var="lgdi_deep",data=data); pdf$lgdi_empe<-2.5
-plotdfn<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_deep");plotdfn$Region<-"WRSN"
-pdf<-makedf(reg="WRSS",var="lgdi_deep",data=data); pdf$lgdi_empe<-2.5
-plotdfs<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_deep");plotdfs$Region<-"WRSS"
-pdf<-makedf(reg="ERS",var="lgdi_deep",data=data); pdf$lgdi_empe<-2.5
-plotdfe<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_deep");plotdfe$Region<-"ERS"
-nreg<-makePredictions(df=pdf,mdlfit=topmdl_nint,varnam="lgdi_deep");nreg$Region<-"ALL"
+pdf<-makedf(reg="WRSN",var="lgdi_deep",data=data)
+plotdfn<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_deep",intsC=intsC,reg="WRSN",conf=86);plotdfn$Region<-"WRSN"		#conf=68 or any other value will yield 1SD, 0 means no SD
+pdf<-makedf(reg="WRSS",var="lgdi_deep",data=data)
+plotdfs<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_deep",intsC=intsC,reg="WRSS",conf=86);plotdfs$Region<-"WRSS"
+pdf<-makedf(reg="ERS",var="lgdi_deep",data=data)
+plotdfe<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_deep",intsC=intsC,reg="ERS",conf=86);plotdfe$Region<-"ERS"
+nreg<-makePredictions(df=pdf,mdlfit=topmdl_nint,varnam="lgdi_deep",intsC=intsC,reg="ALL",conf=86);nreg$Region<-"ALL"
 
 plotdf<-rbind(plotdfn,plotdfs);plotdf<-rbind(plotdf,plotdfe)
 plotdf$lgdi_deep<-plotdf$lgdi_deep-1
@@ -208,13 +260,13 @@ regionsdf<-plotdf
 nregdf<-nreg
 
 #lgratio_edge
-pdf<-makedf(reg="WRSN",var="lgratio_edge",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_adpe<-0; pdf$lgdi_empe<-2.5
-plotdfn<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgratio_edge");plotdfn$Region<-"WRSN"
-pdf<-makedf(reg="WRSS",var="lgratio_edge",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_adpe<-0; pdf$lgdi_empe<-2.5
-plotdfs<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgratio_edge");plotdfs$Region<-"WRSS"
-pdf<-makedf(reg="ERS",var="lgratio_edge",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_adpe<-0; pdf$lgdi_empe<-2.5
-plotdfe<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgratio_edge");plotdfe$Region<-"ERS"
-nreg<-makePredictions(df=pdf,mdlfit=topmdl_nint,varnam="lgratio_edge");nreg$Region<-"ALL"
+pdf<-makedf(reg="WRSN",var="lgratio_edge",data=data)
+plotdfn<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgratio_edge",intsC=intsC,reg="WRSN",conf=86);plotdfn$Region<-"WRSN"
+pdf<-makedf(reg="WRSS",var="lgratio_edge",data=data)
+plotdfs<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgratio_edge",intsC=intsC,reg="WRSS",conf=86);plotdfs$Region<-"WRSS"
+pdf<-makedf(reg="ERS",var="lgratio_edge",data=data)
+plotdfe<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgratio_edge",intsC=intsC,reg="ERS",conf=86);plotdfe$Region<-"ERS"
+nreg<-makePredictions(df=pdf,mdlfit=topmdl_nint,varnam="lgratio_edge",intsC=intsC,reg="ALL",conf=86);nreg$Region<-"ALL"
 
 plotdf<-rbind(plotdfn,plotdfs);plotdf<-rbind(plotdf,plotdfe)
 plotdf<-subset(plotdf,lgratio_edge>0)
@@ -232,13 +284,13 @@ nreg$CovarName<-"Log(Dist. to ice edge/ice width)"
 nregdf<-rbind(nregdf,nreg)
 
 #distance to emperor penguins
-pdf<-makedf(reg="WRSN",var="lgdi_empe",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_adpe<-0; pdf$lgdi_deep<-2
-plotdfn<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_empe");plotdfn$Region<-"WRSN"
-pdf<-makedf(reg="WRSS",var="lgdi_empe",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_adpe<-0; pdf$lgdi_deep<-2
-plotdfs<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_empe");plotdfs$Region<-"WRSS"
-pdf<-makedf(reg="ERS",var="lgdi_empe",data=data); pdf$lgdi_deep<-3; pdf$lgicewidth<-1.5; pdf$lgdi_deep<-2
-plotdfe<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_empe");plotdfe$Region<-"ERS"
-nreg<-makePredictions(df=pdf,mdlfit=topmdl_nint,varnam="lgdi_empe");nreg$Region<-"ALL"
+pdf<-makedf(reg="WRSN",var="lgdi_empe",data=data)
+plotdfn<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_empe",intsC=intsC,reg="WRSN",conf=86);plotdfn$Region<-"WRSN"
+pdf<-makedf(reg="WRSS",var="lgdi_empe",data=data)
+plotdfs<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_empe",intsC=intsC,reg="WRSS",conf=86);plotdfs$Region<-"WRSS"
+pdf<-makedf(reg="ERS",var="lgdi_empe",data=data)
+plotdfe<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_empe",intsC=intsC,reg="ERS",conf=86);plotdfe$Region<-"ERS"
+nreg<-makePredictions(df=pdf,mdlfit=topmdl_nint,varnam="lgdi_empe",intsC=intsC,reg="ALL",conf=86);nreg$Region<-"ALL"
 
 plotdf<-rbind(plotdfn,plotdfs);plotdf<-rbind(plotdf,plotdfe)
 plotdf<-subset(plotdf,lgdi_empe>0)
@@ -260,18 +312,25 @@ nregdf<-rbind(nregdf,nreg)
 regionsdf$RegionName<-ifelse(regionsdf$Region=="ERS","Eastern Ross Sea",
 		ifelse(regionsdf$Region=="WRSS","Western Ross Sea South","Western Ross Sea North"))
 
+regionsdf$Covar<-ifelse(regionsdf$CovarName=="LGDI_DEEP","Log(Distance to deep waters)",
+		ifelse(regionsdf$CovarName=="LGDI_EMPE","Log(Distance to EMPE colony)","Log(Dist. to edge/ice width)"))
+
+regionsdf$CovOrder<-ifelse(regionsdf$CovarName=="LGDI_DEEP",1,ifelse(regionsdf$CovarName=="LGDI_EMPE",2,3))
+
+regionsdf<-within(regionsdf,{Covar<-reorder(Covar,CovOrder)})
+
 p<-ggplot(data=regionsdf,aes(x=CovariateValue,y=predicted)) + 
-		geom_line(color="black",size=1) + geom_ribbon(aes(ymin=ymin,ymax=ymax),color="light gray",alpha=0.5) +
+		geom_line(color="black",size=1.3) + geom_ribbon(aes(ymin=ymin,ymax=ymax),color="light gray",alpha=0.5) +
 		theme_bw() +
 		scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.2)) +
-		facet_grid(RegionName~CovarName,scales="free") +
+		facet_grid(RegionName~Covar,scales="free") +
 		labs(y="Probability of seal presence", x="Predictor Value") +
 		scale_x_continuous(breaks=c(0:8)) +
 		theme(axis.text.x=element_text(size=24, color="black")) + theme(axis.title.x=element_text(size=28,face="bold")) +
 		theme(axis.text.y=element_text(size=24, color="black")) + theme(axis.title.y=element_text(size=28,face="bold")) +
 		theme(strip.text.x=element_text(size=24)) + theme(strip.text.y=element_text(size=24))
 
-jpeg(filename=paste(basepth,"/paper/plots/Plasticity.jpg",sep=""),width=1000,height=1000,quality=100)
+jpeg(filename=paste(basepth,"/paper/plots/Plasticity.jpg",sep=""),width=1200,height=1100,quality=100)
 print(p)
 dev.off()
 
@@ -294,12 +353,17 @@ p<-ggplot(data=alldata,aes(x=CovariateValue,y=predicted)) +
 
 #then the non-interacting effects: lgdi_adpe, lgdi_glac, lgicewidth, lgdi_cont, lgnear_empe
 #lgdi_cont
-pdf<-makedf(reg=c("WRSN","WRSS","ERS"),var="lgdi_cont",data=data);pdf$AllRegion<-"WRSS"
-plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_cont");plotdf$Region<-"All Regions"
+#recentering... but this time to the entire region
+fml_region<-as.formula("sealspres ~ 1"); mdl_region<-glm(formula=fml_region,data=data,family="binomial");summary(mdl_region)
+qvr<-summary(mdl_region)$coefficients;
+wrssInt<-qvr[1,1];intsC<-c(wrssInt);names(intsC)<-c("WRSS")
+
+pdf<-makedf(reg=c("WRSN","WRSS","ERS"),var="lgdi_cont",data=data);pdf$AllRegion<-"WRSS"	#reg=c("WRSN","WRSS","ERS")
+plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_cont",intsC=intsC,reg="WRSS",conf=68);plotdf$Region<-"All Regions"	#conf=68 or any other value will yield 1SD, 0 means no SD
 nintpdf<-plotdf;nintpdf$Variable<-"A";names(nintpdf)<-gsub("lgdi_cont","value",names(nintpdf))
 
 
-p<-ggplot(data=plotdf,aes(x=lgdi_cont,y=predicted)) + 
+p<-ggplot(data=subset(plotdf,lgdi_cont>=0),aes(x=lgdi_cont,y=predicted)) + 
 		geom_line(color="black",size=1) + geom_ribbon(aes(ymin=ymin,ymax=ymax),color="light gray",alpha=0.5) +
 		theme_bw() +
 		scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.2)) +
@@ -313,12 +377,12 @@ dev.off()
 
 #lgdi_adpe
 pdf<-makedf(reg=c("WRSN","WRSS","ERS"),var="lgdi_adpe",data=data);pdf$AllRegion<-"WRSS"
-plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_adpe");plotdf$Region<-"All Regions"
+plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_adpe",intsC=intsC,reg="WRSS",conf=68);plotdf$Region<-"All Regions"
 tdf<-plotdf;tdf$Variable<-"B";names(tdf)<-gsub("lgdi_adpe","value",names(tdf))
 tdf<-subset(tdf,value>0)
 nintpdf<-rbind(nintpdf,tdf)
 
-p<-ggplot(data=plotdf,aes(x=lgdi_adpe,y=predicted)) + 
+p<-ggplot(data=subset(plotdf,lgdi_adpe>=0),aes(x=lgdi_adpe,y=predicted)) + 
 		geom_line(color="black",size=1) + geom_ribbon(aes(ymin=ymin,ymax=ymax),color="light gray",alpha=0.5) +
 		theme_bw() +
 		scale_y_continuous(limits=c(0,1),breaks=seq(0,1,0.2)) +
@@ -326,13 +390,13 @@ p<-ggplot(data=plotdf,aes(x=lgdi_adpe,y=predicted)) +
 		theme(axis.text.x=element_text(size=22, color="black")) + theme(axis.title.x=element_text(size=24,face="bold")) +
 		theme(axis.text.y=element_text(size=22, color="black")) + theme(axis.title.y=element_text(size=26,face="bold"))
 
-jpeg(filename=paste(basepth,"/paper/plots/DistToNearestADPE.jpg",sep=""),width=400,height=400,quality=100)
+jpeg(filename=paste(basepth,"/paper/plots/DistToNearestADPE.jpg",sep=""),width=420,height=400,quality=100)
 print(p)
 dev.off()
 
 #lgdi_glac
 pdf<-makedf(reg=c("WRSN","WRSS","ERS"),var="lgdi_glac",data=data);pdf$AllRegion<-"WRSS"
-plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_glac");plotdf$Region<-"All Regions"
+plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgdi_glac",intsC=intsC,reg="WRSS",conf=68);plotdf$Region<-"All Regions"
 tdf<-plotdf;tdf$Variable<-"C";names(tdf)<-gsub("lgdi_glac","value",names(tdf))
 nintpdf<-rbind(nintpdf,tdf)
 
@@ -350,7 +414,7 @@ dev.off()
 
 #lgicewidth
 pdf<-makedf(reg=c("WRSN","WRSS","ERS"),var="lgicewidth",data=data);pdf$AllRegion<-"WRSS"
-plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgicewidth");plotdf$Region<-"All Regions"
+plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgicewidth",intsC=intsC,reg="WRSS",conf=68);plotdf$Region<-"All Regions"
 tdf<-plotdf;tdf$Variable<-"D";names(tdf)<-gsub("lgicewidth","value",names(tdf))
 nintpdf<-rbind(nintpdf,tdf)
 
@@ -368,7 +432,7 @@ dev.off()
 
 #lgnear_empe
 pdf<-makedf(reg=c("WRSN","WRSS","ERS"),var="lgnear_empe",data=data);pdf$AllRegion<-"WRSS"
-plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgnear_empe");plotdf$Region<-"All Regions"
+plotdf<-makePredictions(df=pdf,mdlfit=topmdl_ra,varnam="lgnear_empe",intsC=intsC,reg="WRSS",conf=68);plotdf$Region<-"All Regions"
 tdf<-plotdf;tdf$Variable<-"E";names(tdf)<-gsub("lgnear_empe","value",names(tdf))
 nintpdf<-rbind(nintpdf,tdf)
 
